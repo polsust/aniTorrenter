@@ -1,0 +1,92 @@
+#!/usr/bin/python
+import sys
+from bs4 import BeautifulSoup
+import requests
+import subprocess
+from pyfzf.pyfzf import FzfPrompt
+
+def noResults():
+    print('no results')
+    quit()
+
+url = 'https://nyaa.si/?f=0&c=1_2&o=desc&s=seeders'
+
+# remove script name from argument
+args = sys.argv
+args[0] = ''
+
+if len(args) > 1:
+    searchQuery = '+'.join(args)
+else:
+    searchQuery = input("search: ")
+    searchQuery = searchQuery.replace(' ', '+')
+
+url += "&q=" + searchQuery
+
+website = requests.get(url)
+
+soup = BeautifulSoup(website.text, 'html.parser')
+
+linksTable = soup.find('tbody')
+
+# if the table is empty
+if linksTable == None:
+    noResults()
+
+animes = []
+animeTitles = []
+
+for anime in linksTable.findAll('tr'):
+    # find all <td> elements
+    tds = anime.findAll('td')
+    tdName = tds[1]
+    tdDownloads = tds[2]
+    tdSeeders = tds[5]
+    tdNameElements = tdName.findAll('a')
+
+    # innerHTML of tdSeeders
+    seeders = int(tdSeeders.encode_contents())
+
+    if seeders == 0:
+        # skip anime if no seeders
+        continue
+
+    #title = ''
+    if len(tdNameElements) != 1:
+        title = tdNameElements[1]['title']
+    else:
+        title = tdNameElements[0]['title']
+
+    # get magnet
+    downloadLinks = tdDownloads.findAll('a')
+    magnet = downloadLinks[1]['href']
+
+    title += " SEEDERS: " + str(seeders)
+
+    animes.append({'title': title, 'magnet': magnet})
+    animeTitles.append(title)
+
+if len(animeTitles) == 0:
+    noResults()
+
+fzf = FzfPrompt()
+
+# choose anime
+chosenAnime = fzf.prompt(animeTitles, "--cycle")
+
+# choose mode
+mode = fzf.prompt(['download', 'stream'], "--cycle")
+
+for anime in animes:
+    if anime['title'] == chosenAnime[0]:
+
+        if mode[0] == 'stream':
+            subprocess.check_call(
+                'webtorrent --mpv "' + anime['magnet'] + '"',
+                shell=True
+            )
+        else:
+            subprocess.check_call(
+                'aria2c "' + anime['magnet'] + '"',
+                shell=True
+            )
