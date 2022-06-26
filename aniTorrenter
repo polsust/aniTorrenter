@@ -14,7 +14,6 @@ url = 'https://nyaa.si/?f=0&c=1_2&o=desc&s=seeders'
 # remove script name from argument
 args = sys.argv
 args[0] = ''
-
 if len(args) > 1:
     searchQuery = '+'.join(args)
 else:
